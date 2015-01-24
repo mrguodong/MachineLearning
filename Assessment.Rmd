@@ -1,0 +1,101 @@
+---
+title: "Machine Learning Assessment"
+author: "Dong Guo"
+date: "Saturday, January 24, 2015"
+output: html_document
+---
+```{r echo=FALSE,message=FALSE}
+library(caret)
+library(randomForest)
+library(gbm)
+library(plyr)
+```
+#Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+
+
+##Data Source 
+The training data:
+        https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data:: 
+        https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+
+##Data Load
+```{r cachedChunk, cache=TRUE}
+train <- read.csv("c:\\RData\\pml-training.csv")
+test <- read.csv("c:\\RData\\pml-testing.csv")
+```
+
+##Data Cleaning
+As there are 160 columns in train/test dataset. First, confirming the data in dataset.
+```{r}
+str(train,list.len=15)
+```
+There are `r ncol(train)` columns.
+
+###Removing first 7 columns 
+We need remove some non-value columes from dataset.
+Column 1- 7 are just user information and time information. So move them from dataset 
+
+```{r}
+train <- train[,-(1:7)]
+test <- test[,-(1:7)]
+```
+
+###Removing columns with most of value of NA or "" (Threshold is 95%)
+```{r}
+threshold <- nrow(train) * 0.95
+NACols <- !apply(train, 2, function(x) sum(is.na(x)) > threshold  || sum(x=="") > threshold)
+train <- train[,NACols]
+test <- test[,NACols]
+```
+
+###Removing columns with almost no variance 
+```{r}
+NVCols <- nearZeroVar(train,saveMetrics=TRUE)
+train <- train[,NVCols$nzv==FALSE]
+test <- test[,NVCols$nzv==FALSE]
+train$classe = factor(train$classe)
+```
+
+**Now we have `r ncol(train)` columns in the dataset**
+
+##Model
+We will Random Forest classification to make a prediction of classe. To measure the accuracy of the model, we will 10-fold cross validation with 75:25 split. For each fold, 75% data will be used for training and 25% for testing.
+```{r}
+set.seed(10001)
+OBS = c()
+PREDS = c()
+for(i in 1:10){
+        sTrain = createDataPartition(train$classe,p=0.75,list=FALSE)
+        trainSub = train[sTrain,]
+        testSub=train[-sTrain,]
+        modRF = randomForest(classe ~. ,data=trainSub)
+        OBS = c(OBS, testSub$classe)
+        PREDS = c(PREDS,predict(modRF,testSub))
+}
+```
+
+###Confusion matrix for predictions
+```{r}
+matrix1 <- confusionMatrix(table(PREDS,OBS))
+matrix1$table
+```
+
+The accuracy is matrix1$overall["Accuracy"] = `r matrix1$overall["Accuracy"]` which is very close to 100%.
+
+## Predict
+
+The proposed model is working well. We used random forest to predict the classe of an action.
+```{r}
+answer <- predict(modRF,test)
+print(answer)
+```
+
+#Conclusion
+In this assessment, we loaded data and cleaned data by selecting 53 of 160 columns. Using confusion matrix and 10-fold cross validation give us 99.59% accuracy.
+
